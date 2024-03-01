@@ -25,9 +25,9 @@ public class ScratchGameApplication {
 
 		String jsonFilePath = null;
 		int bettingAmount = 100;
-		
+
 		for (int i = 0; i < args.length; i++) {
-			
+
 			if (args[i].equals("--config")) {
 				jsonFilePath = args[i + 1];
 			}
@@ -41,37 +41,22 @@ public class ScratchGameApplication {
 		objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
 		try {
-			InputStream stream = ScratchGameApplication.class.getResourceAsStream("/" + jsonFilePath);
 
+			InputStream stream = ScratchGameApplication.class.getResourceAsStream("/" + jsonFilePath);
 			config = objectMapper.readValue(stream, Configuration.class);
 
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 
-		StandardSymbolProbability[][] probabilityMatrix = new StandardSymbolProbability[config.getRows()][config
-				.getColumns()];
-
-		for (StandardSymbolProbability probability : config.getProbabilities().getStandardSymbols()) {
-			probabilityMatrix[probability.getRow()][probability.getColumn()] = probability;
-		}
-
-		String[][] matrix = buildSymbolMatrix(probabilityMatrix);
+		String[][] matrix = buildSymbolMatrix();
 		String bonusSymbol = addBounsSymbolInMatrix(matrix);
 
 		Map<String, List<String>> winCombinations = findWinCombinations(matrix, bonusSymbol);
 
 		int reward = calculateReward(winCombinations, bonusSymbol, bettingAmount);
 
-		GameResponse response = new GameResponse();
-		response.setMatrix(SymbolUtil.convertMatrixToList(matrix));
-
-		if (reward != 0) {
-			response.setAppliedSymbolBonus(bonusSymbol);
-			
-		}
-		response.setAppliedWinningCombinations(winCombinations);
-		response.setReward(reward);
+		GameResponse response = buildGameResponse(matrix, winCombinations, bonusSymbol, reward);
 
 		objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
 
@@ -79,7 +64,21 @@ public class ScratchGameApplication {
 
 	}
 
-	
+	private static GameResponse buildGameResponse(String[][] matrix, Map<String, List<String>> winCombinations,
+			String bonusSymbol, int reward) {
+		GameResponse response = new GameResponse();
+		response.setMatrix(SymbolUtil.convertMatrixToList(matrix));
+
+		if (reward != 0) {
+			response.setAppliedSymbolBonus(bonusSymbol);
+
+		}
+		response.setAppliedWinningCombinations(winCombinations);
+		response.setReward(reward);
+		
+		return response;
+	}
+
 	private static String addBounsSymbolInMatrix(String[][] matrix) {
 		String bonusSymbol = SymbolUtil.generateRandomSymbol(config.getProbabilities().getBonusSymbols().getSymbols());
 		Random random = new Random();
@@ -90,14 +89,20 @@ public class ScratchGameApplication {
 		return bonusSymbol;
 	}
 
-	private static String[][] buildSymbolMatrix(StandardSymbolProbability[][] probabilityMatrix) throws Exception {
+	private static String[][] buildSymbolMatrix() throws Exception {
+
+		StandardSymbolProbability[][] probabilityMatrix = new StandardSymbolProbability[config.getRows()][config.getColumns()];
+		
+		for (StandardSymbolProbability probability : config.getProbabilities().getStandardSymbols()) {
+			probabilityMatrix[probability.getRow()][probability.getColumn()] = probability;
+		}
 		String[][] matrix = new String[config.getRows()][config.getColumns()];
 
 		for (int i = 0; i < config.getRows(); i++) {
 			for (int j = 0; j < config.getColumns(); j++) {
 
 				if (probabilityMatrix[i][j] == null) {
-					throw new Exception("Config File is not correct");
+					throw new Exception("Config File is not correct, check probabilities");
 				}
 
 				matrix[i][j] = SymbolUtil.generateRandomSymbol(probabilityMatrix[i][j].getSymbols());
@@ -140,8 +145,8 @@ public class ScratchGameApplication {
 			}
 
 			if (!winCombinations.isEmpty()) {
-				
-				if(symbolWinCombinations == null) {
+
+				if (symbolWinCombinations == null) {
 					symbolWinCombinations = new HashMap<String, List<String>>();
 				}
 				symbolWinCombinations.put(symbol, winCombinations);
@@ -194,8 +199,8 @@ public class ScratchGameApplication {
 
 	private static int calculateReward(Map<String, List<String>> winCombinations, String bonusSymbol,
 			int bettingAmount) {
-		
-		if(winCombinations == null) {
+
+		if (winCombinations == null) {
 			return 0;
 		}
 
